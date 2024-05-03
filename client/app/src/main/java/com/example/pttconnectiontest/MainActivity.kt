@@ -11,17 +11,16 @@ import java.net.InetAddress
 
 class MainActivity : AppCompatActivity() {
 
-    private val remoteHost = "10.74.231.208"// ""172.31.21.8"//""190.2.45.173" //"119.8.74.219"
-    private val pingPort = 64742 //64742
-    private val pongPort = 64749 //64742
+    private val remoteHost = "190.2.45.173"//"10.74.231.208"// ""172.31.21.8" //"119.8.74.219"
+    private val pingPort = 64748 //64742
+    private val datosPort = 64747 //64742
 
     private var pingSocket: DatagramSocket? = null
-    private var pongSocket: DatagramSocket? = null
+    private var datosSocket: DatagramSocket? = null
 
     private var resultado = ""
     private lateinit var textLog: TextView;
 
-    private var iniciar = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,56 +35,96 @@ class MainActivity : AppCompatActivity() {
             resultado = ""
 
             Thread(Runnable {
-                Thread.sleep(500)
-                test()
+                iniciar()
+                loopPing()
 
-                runOnUiThread {
-                    textLog.text = resultado
-                }
+                updateUI()
+
+            }).start()
+
+            Thread(Runnable {
+                Thread.sleep(500)
+                loopDatos()
+                updateUI()
 
             }).start()
 
         }
     }
+    private fun updateUI() {
+        runOnUiThread {
+            textLog.text = resultado
+        }
+    }
+    private fun iniciar() {
 
+        pingSocket = DatagramSocket(9000)
+        pingSocket!!.broadcast = true
+        pingSocket!!.connect(InetAddress.getByName(remoteHost), pingPort)
 
-    private fun test() {
+        datosSocket =  DatagramSocket(9001)//DatagramSocket(6666)
+        datosSocket!!.broadcast = true
+        datosSocket!!.connect(InetAddress.getByName(remoteHost), datosPort)
+
+        resultado += "connect OK \n"
+        updateUI()
+        Thread.sleep(2000)
+
+    }
+
+    private fun loopPing() {
         try {
 
-            if (iniciar){
-                iniciar = false
-
-                pingSocket = DatagramSocket()
-                pingSocket!!.broadcast = true
-
-                pongSocket =  DatagramSocket()//DatagramSocket(6666)
-                pongSocket!!.broadcast = true
-                pongSocket!!.connect(InetAddress.getByName(remoteHost), pongPort)
-
-                resultado += "connect OK \n"
-
-            }
-
-            var ping = ByteArray(100)
+            val ping = ByteArray(100)
             val sendPacket =
                 DatagramPacket(ping, ping.size, InetAddress.getByName(remoteHost), pingPort)
             pingSocket?.send(sendPacket)
             resultado += "ping OK \n"
 
-            //val sendPacket2 =
-            //    DatagramPacket(ping, ping.size, InetAddress.getByName(remoteHost), pongPort)
-            //pongSocket?.send(sendPacket2)
+            val buffer = ByteArray(1024)
+            val packet = DatagramPacket(buffer, buffer.size)
 
+            for (i in 1..10) { // igual espera el FIN
+                pingSocket?.receive(packet)
+
+                val respuesta = String(buffer, Charsets.UTF_8)
+
+                resultado += "> Server: " + respuesta + "\n"
+
+                updateUI()
+                if (respuesta.startsWith("FIN")) {
+                    break
+                }
+            }
+
+        } catch (e: Exception) {
+            resultado += "ERR " + e.message + "\n"
+        }
+
+    }
+
+    private fun loopDatos() {
+        try {
+
+            var ping = ByteArray(1)
+
+            val sendPacket2 =
+                DatagramPacket(ping, ping.size, InetAddress.getByName(remoteHost), datosPort)
+            datosSocket?.send(sendPacket2)
+
+            resultado += "ping Datos OK \n"
 
             val buffer = ByteArray(1024)
             val packet = DatagramPacket(buffer, buffer.size)
 
             for (i in 1..10) { // igual espera el FIN
-                pongSocket?.receive(packet)
+                datosSocket?.receive(packet)
 
                 val respuesta = String(buffer, Charsets.UTF_8)
 
                 resultado += "> Server: " + respuesta + "\n"
+
+                updateUI()
 
                 if (respuesta.startsWith("FIN")) {
                     break
