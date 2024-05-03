@@ -10,7 +10,7 @@ import (
 
 var gloApp AppConfig
 var udpPing *net.UDPConn
-var udpPong *net.UDPConn
+var udpDatos *net.UDPConn
 
 // se asigna en build.sh
 var GIT string
@@ -23,47 +23,50 @@ func main() {
 	// carga el config.json
 	gloApp.Load()
 
-	go udpPongLoop()
+	go udpDatosLoop()
 
 	udpPingLoop()
 
 }
 
-func udpPongLoop() {
+var datosAddr *net.UDPAddr
+
+func udpDatosLoop() {
 
 	host := "0.0.0.0"
 
 	var err error
 
-	udpPong, err = net.ListenUDP("udp",
+	udpDatos, err = net.ListenUDP("udp",
 		&net.UDPAddr{
 			IP:   net.ParseIP(host),
-			Port: gloApp.PongPort})
+			Port: gloApp.DatosPort})
 
 	if err != nil {
 		fmt.Println("ERR ListenUDP:", err)
 		return
 	}
 
-	fmt.Println("PONG en ", udpPong.LocalAddr())
+	fmt.Println("UDP escuchando Datos en ", udpDatos.LocalAddr())
 
 	buf := make([]byte, 1024)
 
 	for {
-		_, remote, err := udpPong.ReadFrom(buf)
+		_, remote, err := udpDatos.ReadFrom(buf)
 		if err != nil {
 			fmt.Println("ERR udpListenLoop:", err)
 			return
 
 		}
 
-		udpaddr, ok := remote.(*net.UDPAddr)
+		var ok bool
+		datosAddr, ok = remote.(*net.UDPAddr)
 		if !ok {
 			fmt.Println("ERR No UDPAddr in read packet. (Windows?)")
 			return
 		}
 
-		fmt.Printf("Nuevo PONG? desde %+v \n", udpaddr)
+		fmt.Printf("Datos desde %+v \n", datosAddr)
 	}
 }
 
@@ -102,25 +105,42 @@ func udpPingLoop() {
 			return
 		}
 
-		fmt.Printf("Nuevo PING desde %+v \n", udpaddr)
+		fmt.Printf("PING desde %+v \n", udpaddr)
 
-		//udpaddr.Port = 6666
-		//fmt.Printf("Respondiendo a %+v \n", udpaddr)
+		respuestaPing(udpaddr, "PONG 1 \n")
+		respuestaPing(udpaddr, "PONG 2 \n")
+		respuestaPing(udpaddr, "PONG 3 \n")
 
-		send(udpaddr, "PONG 1 \n")
-		send(udpaddr, "PONG 2 \n")
-		send(udpaddr, "PONG 3 \n")
-		send(udpaddr, "FIN........ \n")
+		respuestaDatos(datosAddr, "Datos 1 \n")
+		respuestaDatos(udpaddr, "Datos 2 \n")
+		respuestaDatos(datosAddr, "Datos 3 \n")
+
+		delay := 50
+		fmt.Printf("Delay %v segundos", delay)
+		time.Sleep(time.Second * time.Duration(delay))
+
+		respuestaDatos(datosAddr, "FIN........ \n")
+		respuestaPing(udpaddr, "FIN........ \n")
 
 	}
 }
 
-func send(udpaddr *net.UDPAddr, resultado string) {
+func respuestaPing(udpaddr *net.UDPAddr, texto string) {
 
 	time.Sleep(1 * time.Second)
-	log.Printf("Enviando %v ", resultado)
+	log.Printf("Enviando PING %v a %v", texto, udpaddr)
 
-	buf := []byte(resultado)
-	udpPong.WriteTo(buf, udpaddr)
+	buf := []byte(texto)
+	udpPing.WriteTo(buf, udpaddr)
+
+}
+func respuestaDatos(remoteAddr *net.UDPAddr, texto string) {
+
+	time.Sleep(1 * time.Second)
+	log.Printf("Enviando Datos %v a %v", texto, remoteAddr)
+
+	buf := []byte(texto)
+
+	udpDatos.WriteTo(buf, remoteAddr)
 
 }

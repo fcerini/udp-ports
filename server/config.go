@@ -9,8 +9,8 @@ import (
 
 // AppConfig Global Configuration
 type AppConfig struct {
-	PingPort int
-	PongPort int
+	PingPort  int
+	DatosPort int
 }
 
 // Load config
